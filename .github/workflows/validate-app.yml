@@ -32,3 +32,24 @@ jobs:
           assert Path("fonts/IPAexGothic.ttf").is_file(), "Japanese font is missing"
           print("Japanese font file found")
           PY
+      - name: Smoke-test Streamlit startup
+        run: |
+          set -e
+          streamlit run db7559__12_pdf.py --server.headless true --server.port 8501 > /tmp/streamlit.log 2>&1 &
+          STREAMLIT_PID=$!
+          trap 'kill "$STREAMLIT_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://localhost:8501/_stcore/health; then
+              echo
+              echo "Streamlit health check passed"
+              exit 0
+            fi
+            if ! kill -0 "$STREAMLIT_PID" 2>/dev/null; then
+              cat /tmp/streamlit.log
+              exit 1
+            fi
+            sleep 2
+          done
+          cat /tmp/streamlit.log
+          echo "Streamlit did not become healthy in time"
+          exit 1
